@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Prints the effective battery charge thresholds read straight from sysfs
+# (kernel ground truth), instead of UPower's cached charge-start/end-threshold
+# properties — which have been observed to go stale indefinitely (not just
+# lag briefly) after a change made outside UPower's own control path.
+# Read-only, no root needed. Output: "<start>\t<end>".
+#
+# Accounts for charge_types: when the active mode isn't Custom, the stored
+# end_threshold isn't actually enforced, so this reports 0-100 (uncapped).
+
+set -euo pipefail
+
+shopt -s nullglob
+batteries=(/sys/class/power_supply/BAT*)
+(( ${#batteries[@]} > 0 )) || exit 0
+
+bat="${batteries[0]}"
+[[ -f $bat/charge_control_end_threshold ]] || exit 0
+
+start=0
+[[ -f $bat/charge_control_start_threshold ]] && start=$(<"$bat/charge_control_start_threshold")
+end=$(<"$bat/charge_control_end_threshold")
+
+if [[ -f $bat/charge_types ]]; then
+  active=$(grep -oP '(?<=\[)[^\]]+(?=\])' "$bat/charge_types" || true)
+  if [[ $active != Custom ]]; then
+    start=0
+    end=100
+  fi
+fi
+
+printf '%s\t%s\n' "$start" "$end"

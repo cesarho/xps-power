@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Sets the Dell battery charging profile (charge_types) on all present
+# batteries. Must run as root (invoked via pkexec from the XPS Power
+# panel). Fast/Standard/Adaptive are Dell's own uncapped/heuristic modes;
+# Custom is the only mode that honors charge_control_start/end_threshold.
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy-battery-mode-set <Fast|Standard|Adaptive|Custom>" >&2
+  exit 1
+}
+
+mode="${1:-}"
+[[ $mode =~ ^(Fast|Standard|Adaptive|Custom)$ ]] || usage
+
+shopt -s nullglob
+batteries=(/sys/class/power_supply/BAT*)
+(( ${#batteries[@]} > 0 )) || { echo "no battery found" >&2; exit 1; }
+
+for bat in "${batteries[@]}"; do
+  [[ -f $bat/charge_types ]] || continue
+  echo "$mode" >"$bat/charge_types"
+done

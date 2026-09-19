@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "cesarho.xps-power",
+  "name": "XPS Power",
+  "version": "1.0.0",
+  "author": "Cesar Ho",
+  "description": "Battery, power profile, charge limit and system stats for Dell XPS laptops",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "XPS Power",
+    "description": "Battery, power profile, charge limit and system stats",
+    "category": "System",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.power"
+  }
+}

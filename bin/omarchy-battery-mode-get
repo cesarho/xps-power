@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Prints the active Dell battery charge_types mode (Trickle/Fast/Standard/
+# Adaptive/Custom), read straight from sysfs. Read-only, no root needed.
+
+set -euo pipefail
+
+shopt -s nullglob
+batteries=(/sys/class/power_supply/BAT*)
+(( ${#batteries[@]} > 0 )) || exit 0
+
+bat="${batteries[0]}"
+[[ -f $bat/charge_types ]] || exit 0
+
+grep -oP '(?<=\[)[^\]]+(?=\])' "$bat/charge_types" || true
