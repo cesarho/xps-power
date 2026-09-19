@@ -14,11 +14,9 @@ An [Omarchy](https://omarchy.org) bar widget for Dell XPS laptops. It is a fork 
 omarchy plugin add https://github.com/cesarho/xps-power.git --enable
 ```
 
-To use it in place of the stock Power widget, remove `omarchy.power` from your bar and put this one there:
-
-```bash
-omarchy bar put cesarho.xps-power --section right
-```
+Enabling it replaces the stock Power widget in your bar, in the same spot. Omarchy does this for any
+plugin that declares `omarchy.clonedFrom`. The keybinding and menu items that target `omarchy.power`
+also go to this widget. To go back to the stock widget, run `omarchy plugin disable cesarho.xps-power`.
 
 Update later with `omarchy plugin update cesarho.xps-power`.
 
