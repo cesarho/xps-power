@@ -140,6 +140,7 @@ Panel {
     if (!systemProc.running) systemProc.running = true
     if (!chargeLimitReadProc.running) chargeLimitReadProc.running = true
     if (!chargeModeReadProc.running) chargeModeReadProc.running = true
+    if (!helperCheckProc.running) helperCheckProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -181,6 +182,10 @@ Panel {
   // arbitrary code that then runs as root. It is installed root-owned by
   // system/install.sh, and the widget only passes it allowlisted values.
   readonly property string privilegedHelper: "/usr/local/libexec/xps-power/xps-power-battery-set"
+  // Until the helper is installed the charge rows are hidden and a setup row
+  // shows the install command instead of failing on click.
+  property bool helperInstalled: false
+  readonly property string installCommand: decodeURIComponent(Qt.resolvedUrl("system/install.sh").toString().replace("file://", ""))
 
   function setChargeMode(mode) {
     if (!mode || chargeModeProc.running) return
@@ -189,13 +194,13 @@ Panel {
   }
 
   // pkexec exits 126 when the auth dialog is dismissed and 127 when not
-  // authorized or it could not run the helper (e.g. it was never installed).
+  // authorized.
   // Without this, a cancelled prompt and "band logic legitimately did
   // nothing" look identical in the UI.
   function notifyPrivilegedFailure(action, exitCode) {
     var reason
     if (exitCode === 126) reason = "authentication cancelled"
-    else if (exitCode === 127) reason = "not authorized, or helper missing (run system/install.sh)"
+    else if (exitCode === 127) reason = "not authorized"
     else reason = "helper failed"
     notifyProc.command = ["omarchy-notification-send", "-u", "critical", "Battery", action + " not applied — " + reason]
     notifyProc.running = true
@@ -313,6 +318,12 @@ Panel {
       if (exitCode !== 0) root.notifyPrivilegedFailure("Charge mode", exitCode)
       root.refresh()
     }
+  }
+
+  Process {
+    id: helperCheckProc
+    command: ["test", "-x", root.privilegedHelper]
+    onExited: function(exitCode) { root.helperInstalled = exitCode === 0 }
   }
 
   Process {
@@ -550,12 +561,56 @@ Panel {
           }
         }
 
-        // ---------- Charge mode picker ----------
+        // ---------- Charge controls setup (helper not installed) ----------
         PanelSeparator {
+          visible: !root.helperInstalled
           foreground: root.bar.foreground
         }
 
         Column {
+          visible: !root.helperInstalled
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSectionHeader {
+            text: "CHARGE CONTROLS SETUP"
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          InfoLabel {
+            width: parent.width
+            wrapMode: Text.Wrap
+            text: "Run this once in a terminal to enable charge mode and limit, then reopen this panel:"
+          }
+
+          InfoValue {
+            width: parent.width
+            wrapMode: Text.WrapAnywhere
+            text: root.installCommand
+          }
+
+          Button {
+            width: parent.width
+            text: "Copy command"
+            fontSize: Style.font.bodySmall
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            horizontalPadding: Style.spacing.controlPaddingX
+            verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+            bordered: true
+            onClicked: Quickshell.execDetached(["wl-copy", "--", root.installCommand])
+          }
+        }
+
+        // ---------- Charge mode picker ----------
+        PanelSeparator {
+          visible: root.helperInstalled
+          foreground: root.bar.foreground
+        }
+
+        Column {
+          visible: root.helperInstalled
           width: parent.width
           spacing: Style.space(10)
 
@@ -595,10 +650,12 @@ Panel {
 
         // ---------- Charge limit picker ----------
         PanelSeparator {
+          visible: root.helperInstalled
           foreground: root.bar.foreground
         }
 
         Column {
+          visible: root.helperInstalled
           width: parent.width
           spacing: Style.space(10)
 

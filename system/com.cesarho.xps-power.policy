@@ -10,10 +10,12 @@
   <action id="com.cesarho.xps-power.battery-set">
     <description>Change the battery charge mode or charge limit</description>
     <message>Authentication is required to change the battery charge mode or charge limit</message>
+    <!-- No prompt in the active local session: the helper only accepts
+         4 charge modes and 4 charge limits, so this grants no root access. -->
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
-      <allow_active>auth_admin</allow_active>
+      <allow_active>yes</allow_active>
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/local/libexec/xps-power/xps-power-battery-set</annotate>
   </action>
