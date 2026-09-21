@@ -31,6 +31,16 @@ Run it as your regular user; it asks for your password through `sudo`. It needs 
 Update later with `omarchy plugin update cesarho.xps-power`. Re-run `install.sh` afterwards if `system/`
 changed.
 
+After adding, updating or re-adding the plugin, restart the shell:
+
+```bash
+omarchy restart shell
+```
+
+The shell reloads the plugin folder on its own but can keep the previous `Panel.qml` in memory. Until you
+restart, the widget may run old code. For example, after an update that moved a script, the charge controls
+fail with an error.
+
 ## Requirements
 
 The charge controls use the kernel's battery sysfs files and only work on laptops that expose them,
