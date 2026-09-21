@@ -140,6 +140,7 @@ Panel {
     if (!systemProc.running) systemProc.running = true
     if (!chargeLimitReadProc.running) chargeLimitReadProc.running = true
     if (!chargeModeReadProc.running) chargeModeReadProc.running = true
+    if (!helperCheckProc.running) helperCheckProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -173,21 +174,34 @@ Panel {
 
   readonly property var chargeModeOptions: ["Fast", "Standard", "Adaptive", "Custom"]
   property string activeChargeMode: ""
-  // Helper scripts ship inside the plugin (bin/), so resolve them relative to
-  // this file instead of assuming a copy in ~/.local/bin.
+  // Read-only helper scripts ship inside the plugin (bin/), so resolve them
+  // relative to this file instead of assuming a copy in ~/.local/bin.
   readonly property string binDir: decodeURIComponent(Qt.resolvedUrl("bin/").toString().replace("file://", ""))
+  // The privileged helper must NOT be run from the plugin folder: that is
+  // writable by the desktop user, so a script there could be swapped for
+  // arbitrary code that then runs as root. It is installed root-owned by
+  // system/install.sh, and the widget only passes it allowlisted values.
+  readonly property string privilegedHelper: "/usr/local/libexec/xps-power/xps-power-battery-set"
+  // Until the helper is installed the charge rows are hidden and a setup row
+  // shows the install command instead of failing on click.
+  property bool helperInstalled: false
+  readonly property string installCommand: decodeURIComponent(Qt.resolvedUrl("system/install.sh").toString().replace("file://", ""))
 
   function setChargeMode(mode) {
     if (!mode || chargeModeProc.running) return
-    chargeModeProc.command = ["pkexec", root.binDir + "omarchy-battery-mode-set", mode]
+    chargeModeProc.command = ["pkexec", root.privilegedHelper, "mode", mode]
     chargeModeProc.running = true
   }
 
-  // pkexec exits 127 when the auth dialog is dismissed / not authorized, 126
-  // for other auth failures. Without this, a cancelled prompt and "band
-  // logic legitimately did nothing" look identical in the UI.
+  // pkexec exits 126 when the auth dialog is dismissed and 127 when not
+  // authorized.
+  // Without this, a cancelled prompt and "band logic legitimately did
+  // nothing" look identical in the UI.
   function notifyPrivilegedFailure(action, exitCode) {
-    var reason = (exitCode === 127) ? "authentication cancelled" : "authentication failed"
+    var reason
+    if (exitCode === 126) reason = "authentication cancelled"
+    else if (exitCode === 127) reason = "not authorized"
+    else reason = "helper failed"
     notifyProc.command = ["omarchy-notification-send", "-u", "critical", "Battery", action + " not applied — " + reason]
     notifyProc.running = true
   }
@@ -207,7 +221,7 @@ Panel {
 
   function setChargeLimit(pct) {
     if (chargeLimitProc.running) return
-    chargeLimitProc.command = ["pkexec", root.binDir + "omarchy-battery-threshold-set", String(pct)]
+    chargeLimitProc.command = ["pkexec", root.privilegedHelper, "threshold", String(pct)]
     chargeLimitProc.running = true
   }
 
@@ -304,6 +318,12 @@ Panel {
       if (exitCode !== 0) root.notifyPrivilegedFailure("Charge mode", exitCode)
       root.refresh()
     }
+  }
+
+  Process {
+    id: helperCheckProc
+    command: ["test", "-x", root.privilegedHelper]
+    onExited: function(exitCode) { root.helperInstalled = exitCode === 0 }
   }
 
   Process {
@@ -541,12 +561,56 @@ Panel {
           }
         }
 
-        // ---------- Charge mode picker ----------
+        // ---------- Charge controls setup (helper not installed) ----------
         PanelSeparator {
+          visible: !root.helperInstalled
           foreground: root.bar.foreground
         }
 
         Column {
+          visible: !root.helperInstalled
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSectionHeader {
+            text: "CHARGE CONTROLS SETUP"
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          InfoLabel {
+            width: parent.width
+            wrapMode: Text.Wrap
+            text: "Run this once in a terminal to enable charge mode and limit, then reopen this panel:"
+          }
+
+          InfoValue {
+            width: parent.width
+            wrapMode: Text.WrapAnywhere
+            text: root.installCommand
+          }
+
+          Button {
+            width: parent.width
+            text: "Copy command"
+            fontSize: Style.font.bodySmall
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            horizontalPadding: Style.spacing.controlPaddingX
+            verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+            bordered: true
+            onClicked: Quickshell.execDetached(["wl-copy", "--", root.installCommand])
+          }
+        }
+
+        // ---------- Charge mode picker ----------
+        PanelSeparator {
+          visible: root.helperInstalled
+          foreground: root.bar.foreground
+        }
+
+        Column {
+          visible: root.helperInstalled
           width: parent.width
           spacing: Style.space(10)
 
@@ -586,10 +650,12 @@ Panel {
 
         // ---------- Charge limit picker ----------
         PanelSeparator {
+          visible: root.helperInstalled
           foreground: root.bar.foreground
         }
 
         Column {
+          visible: root.helperInstalled
           width: parent.width
           spacing: Style.space(10)
 

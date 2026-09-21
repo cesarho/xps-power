@@ -18,7 +18,18 @@ Enabling it replaces the stock Power widget in your bar, in the same spot. Omarc
 plugin that declares `omarchy.clonedFrom`. The keybinding and menu items that target `omarchy.power`
 also go to this widget. To go back to the stock widget, run `omarchy plugin disable cesarho.xps-power`.
 
-Update later with `omarchy plugin update cesarho.xps-power`.
+Then install the privileged helper once. The charge controls need it; everything else works without it.
+Until it's installed, the panel shows this command with a button to copy it:
+
+```bash
+~/.config/omarchy/plugins/cesarho.xps-power/system/install.sh
+```
+
+Run it as your regular user; it asks for your password through `sudo`. It needs network access. Read
+[`system/`](system/) first, since the helper runs as root.
+
+Update later with `omarchy plugin update cesarho.xps-power`. Re-run `install.sh` afterwards if `system/`
+changed.
 
 ## Requirements
 
@@ -36,17 +47,26 @@ The start threshold is clamped to 50-95% to match the limits the Dell BIOS enfor
 
 The plugin runs inside the `omarchy-shell` process without a sandbox, so read the code before you enable it.
 
-Changing the charge mode or limit needs root, so the widget runs one of the scripts in [`bin/`](bin/)
-through `pkexec`. You get a normal authentication prompt each time. These scripts are read from the plugin
-folder in your home directory, so anything that can write there can change what runs as root once you approve
-a prompt. Review them:
+Changing the charge mode or limit needs root. The plugin folder is writable by your user, so the widget never
+runs anything from it as root: anything running as you could swap a script there and get root. Instead
+`system/install.sh` installs a single helper to `/usr/local/libexec/xps-power/`, owned by root, and adds a polkit
+action for it. Root never reads the plugin folder during the install: it downloads both files from this GitHub repo,
+pinned to the commit your checkout is on. The widget calls `pkexec` on that fixed path and passes only a mode
+(`Fast`, `Standard`, `Adaptive`, `Custom`) or a limit (`60`, `80`, `90`, `100`). The helper checks these against the
+same allowlist itself, uses fixed sysfs paths, and ignores everything else.
 
-| Script | Runs as | Does |
+Because the helper can do nothing but set one of those 8 values, the polkit action lets the active local session
+run it without a password prompt. Remote and inactive sessions still need an admin password.
+
+| File | Runs as | Does |
 | --- | --- | --- |
-| `omarchy-battery-mode-set` | root (`pkexec`) | writes `charge_types` |
-| `omarchy-battery-threshold-set` | root (`pkexec`) | writes the start/end thresholds and `charge_types` |
-| `omarchy-battery-mode-get` | you | reads `charge_types` |
-| `omarchy-battery-threshold-get` | you | reads the thresholds |
+| `system/xps-power-battery-set` | root (`pkexec`, installed copy) | writes `charge_types` and the start/end thresholds |
+| `system/com.cesarho.xps-power.policy` | polkit | ties the action to the installed helper path |
+| `system/install.sh` | you (downloads and installs through `sudo`) | installs the two files above |
+| `bin/omarchy-battery-mode-get` | you | reads `charge_types` |
+| `bin/omarchy-battery-threshold-get` | you | reads the thresholds |
+
+To remove the helper, run `system/install.sh --uninstall`.
 
 ## License
 
